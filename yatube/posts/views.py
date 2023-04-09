@@ -42,10 +42,12 @@ def profile(request, username):
         User.objects.prefetch_related('posts'),
         username=username
     )
-    following = request.user.is_authenticated and Follow.objects.filter(
-        user=request.user,
-        author=author
-    ).exists()
+    following = False
+    if request.user.is_authenticated:
+        following = Follow.objects.filter(
+            user=request.user,
+            author=author
+        ).exists()
     page_obj = get_page(request, author.posts.all())
     context = {
         'author': author,
@@ -128,9 +130,9 @@ def add_comment(request, post_id):
 
 @login_required
 def follow_index(request):
-    author_list = request.user.follower.values('author')
-    posts = Post.objects.filter(author__in=author_list)
-    page_obj = get_page(request, posts)
+    post_ids = request.user.follower.values_list('author__posts', flat=True)
+    post_list = Post.objects.filter(id__in=post_ids).all()
+    page_obj = get_page(request, post_list)
     context = {
         'page_obj': page_obj,
     }

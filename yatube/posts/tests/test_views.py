@@ -67,7 +67,11 @@ class PostPagesTests(TestCase):
                 group=cls.group)
             for i in range(TEST_COUNT))
         Post.objects.bulk_create(posts)
-        cls.post = Post.objects.get(pk=1)
+        cls.post = Post.objects.create(
+            author=cls.user,
+            text=POST_TEXT,
+            group=cls.group,
+        )
         small_gif = (
             b'\x47\x49\x46\x38\x39\x61\x02\x00'
             b'\x01\x00\x80\x00\x00\x00\x00\x00'
@@ -83,8 +87,6 @@ class PostPagesTests(TestCase):
         )
         cls.post.image = uploaded
         cls.post.save()
-        cls.follow_author = User.objects.create_user(
-            username=FOLLOW_AUTHOR_USERNAME)
 
     @classmethod
     def tearDownClass(cls):
@@ -291,6 +293,48 @@ class PostPagesTests(TestCase):
         )
         self.assertIn(new_post, response.context['page_obj'])
 
+
+class ImagePostTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = User.objects.create_user(username=AUTHOR_USERNAME)
+        cls.group = Group.objects.create(
+            title=GROUP_TITLE,
+            slug=GROUP_SLUG,
+            description=GROUP_DESCRIPTION,
+        )
+        cls.post = Post.objects.create(
+            author=cls.user,
+            text=POST_TEXT,
+            group=cls.group,
+        )
+        small_gif = (
+            b'\x47\x49\x46\x38\x39\x61\x02\x00'
+            b'\x01\x00\x80\x00\x00\x00\x00\x00'
+            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+            b'\x0A\x00\x3B'
+        )
+        uploaded = SimpleUploadedFile(
+            name='small.gif',
+            content=small_gif,
+            content_type='image/gif'
+        )
+        cls.post.image = uploaded
+        cls.post.save()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
+
+    def setUp(self):
+        self.guest_client = Client()
+        self.authorized_client = Client()
+        self.authorized_client.force_login(self.user)
+
     def test_image_post_in_context(self):
         small_gif = (
             b'\x47\x49\x46\x38\x39\x61\x02\x00'
@@ -315,6 +359,28 @@ class PostPagesTests(TestCase):
         self.assertIsInstance(image, ImageFieldFile)
         self.assertEqual(image.file.read(), small_gif)
 
+
+class CommentPostTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = User.objects.create_user(username=AUTHOR_USERNAME)
+        cls.group = Group.objects.create(
+            title=GROUP_TITLE,
+            slug=GROUP_SLUG,
+            description=GROUP_DESCRIPTION,
+        )
+        cls.post = Post.objects.create(
+            author=cls.user,
+            text=POST_TEXT,
+            group=cls.group,
+        )
+
+    def setUp(self):
+        self.guest_client = Client()
+        self.authorized_client = Client()
+        self.authorized_client.force_login(self.user)
+
     def test_post_detail_show_new_comment(self):
         """Шаблон post_detail отображает новый комментарий
            авторизованному пользователю."""
@@ -335,6 +401,19 @@ class PostPagesTests(TestCase):
             reverse(url_name, kwargs=kwargs)
         )
         self.assertIn(comment, response.context['comments'])
+
+
+class CacheIndexTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = User.objects.create_user(username=AUTHOR_USERNAME)
+
+    def setUp(self):
+        self.guest_client = Client()
+        self.authorized_client = Client()
+        self.authorized_client.force_login(self.user)
+        cache.clear()
 
     def test_cache_work_at_index(self):
         """Проверяем корректность работы кэша."""
@@ -366,6 +445,31 @@ class PostPagesTests(TestCase):
             reverse(url_name, kwargs=kwargs)
         )
         self.assertEqual(response.content, new_response.content)
+
+
+class FollowViewsTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = User.objects.create_user(username=AUTHOR_USERNAME)
+        cls.group = Group.objects.create(
+            title=GROUP_TITLE,
+            slug=GROUP_SLUG,
+            description=GROUP_DESCRIPTION,
+        )
+        cls.post = Post.objects.create(
+            author=cls.user,
+            text=POST_TEXT,
+            group=cls.group,
+        )
+        cls.follow_author = User.objects.create_user(
+            username=FOLLOW_AUTHOR_USERNAME)
+
+    def setUp(self):
+        self.guest_client = Client()
+        self.authorized_client = Client()
+        self.authorized_client.force_login(self.user)
+        cache.clear()
 
     def test_follow_author(self):
         """Авторизованный пользователь

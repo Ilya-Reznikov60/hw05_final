@@ -83,6 +83,11 @@ class Comment(CreatedModel):
         help_text='Добавьте свой комментарий',
     )
 
+    class Meta:
+        ordering = ('-created',)
+        verbose_name_plural = 'Комментарии'
+        verbose_name = 'Комментарий'
+
 
 class Follow(models.Model):
     user = models.ForeignKey(
@@ -97,3 +102,7 @@ class Follow(models.Model):
         related_name='following',
         verbose_name='автор',
     )
+
+    class Meta:
+        verbose_name_plural = 'Подписки'
+        verbose_name = 'Подписка'
